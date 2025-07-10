@@ -11,7 +11,7 @@ class NDCProduct(BaseModel):
     """FDA NDC Product information"""
     
     product_ndc: str = Field(..., description="Product NDC code")
-    product_type: str = Field(..., description="Type of product")
+    product_type: Optional[str] = Field('UNKNOWN', description="Type of product")
     proprietary_name: Optional[str] = Field(None, description="Proprietary name")
     proprietary_name_suffix: Optional[str] = Field(None, description="Proprietary name suffix")
     non_proprietary_name: Optional[str] = Field(None, description="Non-proprietary name")
@@ -32,12 +32,23 @@ class NDCProduct(BaseModel):
     pharm_class_pe_description: Optional[str] = Field(None, description="Physiologic effect description")
     pharm_class_moa_description: Optional[str] = Field(None, description="Mechanism of action description")
     
-    @validator('product_ndc')
-    def validate_ndc_format(cls, v):
-        """Validate NDC format"""
-        if v and len(v.replace('-', '')) != 11:
-            raise ValueError('NDC must be 11 digits (with or without hyphens)')
+    @validator('product_ndc', pre=True, always=True)
+    def validate_and_pad_ndc(cls, v):
+        """Pad NDC to 11 digits if needed, allow hyphens."""
+        if v:
+            ndc_digits = v.replace('-', '')
+            if len(ndc_digits) < 11:
+                ndc_digits = ndc_digits.zfill(11)
+            if len(ndc_digits) != 11:
+                raise ValueError('NDC must be 11 digits (with or without hyphens)')
+            return v if '-' in v else ndc_digits
         return v
+    
+    @validator('start_marketing_date', 'end_marketing_date', pre=True, always=True)
+    def ensure_string_date(cls, v):
+        if v is None:
+            return None
+        return str(v)
 
 
 class RxNormConcept(BaseModel):

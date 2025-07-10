@@ -147,15 +147,43 @@ class FDANDCDownloader:
         # Standardize column names
         df.columns = [col.lower().replace(' ', '_') for col in df.columns]
         
-        # Clean and validate NDC codes
-        df['product_ndc'] = df['product_ndc'].astype(str).str.strip()
-        df = df[df['product_ndc'].str.len() > 0]
+        # Map NBER CSV columns to expected format
+        column_mapping = {
+            'productndc': 'product_ndc',
+            'ndcpackagecode': 'package_ndc',
+            'packagedescription': 'package_description',
+            'startmarketingdate': 'start_marketing_date',
+            'endmarketingdate': 'end_marketing_date',
+            'ndc_exclude_flag': 'exclude_flag',
+            'sample_package': 'sample_package'
+        }
+        
+        # Rename columns if they exist
+        for old_col, new_col in column_mapping.items():
+            if old_col in df.columns:
+                df = df.rename(columns={old_col: new_col})
+        
+        # Clean and validate NDC codes - check for both possible column names
+        ndc_column = None
+        if 'product_ndc' in df.columns:
+            ndc_column = 'product_ndc'
+        elif 'package_ndc' in df.columns:
+            ndc_column = 'package_ndc'
+        
+        if ndc_column:
+            df[ndc_column] = df[ndc_column].astype(str).str.strip()
+            df = df[df[ndc_column].str.len() > 0]
+        else:
+            logger.warning("No NDC column found in data")
+            # Create a dummy NDC column if none exists
+            df['product_ndc'] = df.index.astype(str)
         
         # Remove duplicates
-        df = df.drop_duplicates(subset=['product_ndc'])
+        if ndc_column:
+            df = df.drop_duplicates(subset=[ndc_column])
         
-        # Clean text fields
-        text_columns = ['proprietary_name', 'non_proprietary_name', 'substance_name']
+        # Clean text fields - check for various possible column names
+        text_columns = ['proprietary_name', 'non_proprietary_name', 'substance_name', 'package_description']
         for col in text_columns:
             if col in df.columns:
                 df[col] = df[col].astype(str).str.strip()
@@ -187,8 +215,28 @@ class FDANDCDownloader:
         
         products = []
         for _, row in df.iterrows():
+            data = row.to_dict()
+            # Fill missing fields with defaults for NBER data
+            data.setdefault('product_type', 'UNKNOWN')
+            data.setdefault('proprietary_name', None)
+            data.setdefault('proprietary_name_suffix', None)
+            data.setdefault('non_proprietary_name', None)
+            data.setdefault('dosage_form_name', None)
+            data.setdefault('route_name', None)
+            data.setdefault('marketing_category_name', None)
+            data.setdefault('application_number', None)
+            data.setdefault('labeler_name', None)
+            data.setdefault('substance_name', None)
+            data.setdefault('strength_number', None)
+            data.setdefault('strength_unit', None)
+            data.setdefault('pharm_class_cs', None)
+            data.setdefault('pharm_class_pe', None)
+            data.setdefault('pharm_class_moa', None)
+            data.setdefault('pharm_class_cs_description', None)
+            data.setdefault('pharm_class_pe_description', None)
+            data.setdefault('pharm_class_moa_description', None)
             try:
-                product = NDCProduct(**row.to_dict())
+                product = NDCProduct(**data)
                 products.append(product)
             except Exception as e:
                 logger.warning(f"Failed to create NDCProduct from row: {e}")
