@@ -3,11 +3,13 @@ FastAPI Interface
 RESTful API for the FDA NDC to RxNorm Matching Agent
 """
 
+import pandas as pd
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import time
+import logging
 
 from .agent import FDA_NDC_RxNorm_Agent
 from .models import BatchMatchRequest, BatchMatchResponse, ClinicalOutput
@@ -85,6 +87,50 @@ async def get_ndc_match(ndc_code: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving NDC match: {str(e)}")
+
+
+@app.get("/ndc-info/{ndc_code}")
+async def get_ndc_info(ndc_code: str):
+    """Get NDC product information directly from downloaded data"""
+    try:
+        agent = get_agent()
+        df = agent.ndc_downloader.load_ndc_data()
+        
+        # Search for NDC in both product_ndc and package_ndc columns
+        mask = (df['product_ndc'] == ndc_code) | (df['package_ndc'] == ndc_code)
+        matching_rows = df[mask]
+        
+        if matching_rows.empty:
+            raise HTTPException(status_code=404, detail=f"NDC not found: {ndc_code}")
+        
+        # Return the first match
+        row = matching_rows.iloc[0]
+        
+        # Convert numpy types to native Python types
+        def convert_value(val):
+            if pd.isna(val):
+                return None
+            elif hasattr(val, 'item'):  # numpy scalar
+                return val.item()
+            else:
+                return str(val)
+        
+        return {
+            "ndc_code": ndc_code,
+            "product_ndc": convert_value(row.get('product_ndc')),
+            "package_ndc": convert_value(row.get('package_ndc')),
+            "package_description": convert_value(row.get('package_description')),
+            "start_marketing_date": convert_value(row.get('start_marketing_date')),
+            "end_marketing_date": convert_value(row.get('end_marketing_date')),
+            "exclude_flag": convert_value(row.get('exclude_flag')),
+            "sample_package": convert_value(row.get('sample_package')),
+            "source": "NBER FDA NDC Package Data"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving NDC info: {str(e)}")
 
 
 @app.get("/drugs/search")
