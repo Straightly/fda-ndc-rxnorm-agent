@@ -5,7 +5,7 @@ Configuration settings for FDA NDC to RxNorm Matching Agent
 import os
 from pathlib import Path
 from typing import Optional
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     OUTPUT_DIR: Path = DATA_DIR / "output"
     
     # FDA NDC URLs
-    FDA_NDC_BASE_URL: str = "https://www.fda.gov/media/72380/download"
-    FDA_NDC_ALTERNATIVE_URL: str = "https://download.open.fda.gov/drug/ndc.txt"
+    FDA_NDC_BASE_URL: str = "https://nber.org/fda/ndc/csv/20220906_package.csv"
+    FDA_NDC_ALTERNATIVE_URL: str = "https://nber.org/fda/ndc/csv/20220906_product.csv"
     
     # RxNorm API settings
     RXNORM_API_BASE_URL: str = "https://rxnav.nlm.nih.gov/REST"

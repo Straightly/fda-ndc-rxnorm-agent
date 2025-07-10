@@ -69,18 +69,29 @@ class FDANDCDownloader:
         )
         response.raise_for_status()
         
-        # Save to temporary file
-        temp_file = settings.NDC_DATA_DIR / "ndc_temp.zip"
-        with open(temp_file, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-        
-        # Extract and process
-        self._extract_and_process_zip(temp_file, output_file)
-        temp_file.unlink()  # Clean up
-        
-        logger.info(f"Successfully downloaded NDC data to {output_file}")
-        return output_file
+        # Determine file type by URL
+        if settings.FDA_NDC_BASE_URL.endswith('.csv'):
+            # Save and process CSV directly
+            with open(output_file, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            df = pd.read_csv(output_file)
+            self._process_dataframe(df, output_file)
+            logger.info(f"Successfully downloaded NDC data to {output_file}")
+            return output_file
+        elif settings.FDA_NDC_BASE_URL.endswith('.zip'):
+            # Save to temporary file
+            temp_file = settings.NDC_DATA_DIR / "ndc_temp.zip"
+            with open(temp_file, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            # Extract and process
+            self._extract_and_process_zip(temp_file, output_file)
+            temp_file.unlink()  # Clean up
+            logger.info(f"Successfully downloaded NDC data to {output_file}")
+            return output_file
+        else:
+            raise ValueError("Unsupported file type for FDA NDC data download URL")
     
     def _download_from_fda_alternative(self, output_file: Path) -> Path:
         """Download from alternative FDA source"""
